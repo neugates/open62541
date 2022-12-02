@@ -86,7 +86,7 @@ add_example(tutorial_server_object tutorial_server_object.c)
 if(UA_ENABLE_METHODCALLS)
     add_example(tutorial_server_method tutorial_server_method.c)
     if (UA_MULTITHREADING GREATER_EQUAL 100)
-        add_example(tutorial_server_method_async tutorial_server_method_async.c)
+        add_example(server_method_async async_operations/server_method_async.c)
     endif()
 endif()
 
@@ -128,11 +128,11 @@ install(PROGRAMS $<TARGET_FILE:client>
         DESTINATION bin
         RENAME ua_client)
 
-add_example(client_async client_async.c)
+add_example(client_async_api async_operations/client_async_api.c)
 
 if(UA_ENABLE_METHODCALLS)
     if (UA_MULTITHREADING GREATER_EQUAL 100)
-        add_example(client_method_async client_method_async.c)
+        add_example(client_method_async async_operations/client_method_async.c)
     endif()
 endif()
 
