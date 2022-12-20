@@ -891,6 +891,14 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
             return connection;
         }
 
+        if(clientsockfd >= FD_SETSIZE) {
+            UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                                                    "Client socket exceeds FD_SETSIZE: %s", errno_str));
+            UA_close(clientsockfd);
+            UA_freeaddrinfo(server);
+            return connection;
+        }
+
         connection.state = UA_CONNECTION_OPENING;
 
         /* Connect to the server */
