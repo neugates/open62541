@@ -1062,8 +1062,10 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
                 UA_ByteString_deleteMembers(&payload->bytes);
             SIMPLEQ_REMOVE_HEAD(&message->chunkPayloads, pointers);
             UA_free(payload);
+
         }
         UA_free(message);
+
     }
     return retval;
 }
