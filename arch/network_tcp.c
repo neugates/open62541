@@ -731,6 +731,13 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
             return UA_STATUSCODE_BADDISCONNECT;
         }
 
+        if(connection->sockfd >= FD_SETSIZE) {
+            UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                                                    "Client socket exceeds FD_SETSIZE: %s", errno_str));
+            UA_close(connection->sockfd);
+            return UA_STATUSCODE_BADDISCONNECT;
+        }
+
         /* Non blocking connect to be able to timeout */
         if(UA_socket_set_nonblocking(connection->sockfd) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,

@@ -84,3 +84,7 @@ Makefile
 Pipfile
 Pipfile.lock
 .vscode
+
+build-125/
+build-127/
+build-example/
