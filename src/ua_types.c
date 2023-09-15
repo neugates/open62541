@@ -140,6 +140,8 @@ String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
 static void
 String_clear(UA_String *s, const UA_DataType *_) {
     UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
+    s->data = NULL;
+    s->length = 0;
 }
 
 /* QualifiedName */

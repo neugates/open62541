@@ -250,6 +250,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     /* Receive / decrypt / decode the OPN response. Process async services in
      * the background until the OPN response arrives. */
     UA_OpenSecureChannelResponse response;
+    UA_OpenSecureChannelResponse_init(&response);
     retval = receiveServiceResponse(client, &response,
                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE],
                                     UA_DateTime_nowMonotonic() +
