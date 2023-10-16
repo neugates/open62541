@@ -84,8 +84,53 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
     return UA_STATUSCODE_GOOD;
 }
 
+// #define NEURON_USE_SELECT 1
+
+#ifndef NEURON_USE_SELECT
+#include <sys/epoll.h>
+
 static UA_StatusCode
-connection_recv(UA_Connection *connection, UA_ByteString *response,
+connection_multiplexing(UA_Connection *connection, UA_ByteString *response,
+                        UA_UInt32 timeout) {
+    if(connection->state == UA_CONNECTIONSTATE_CLOSED)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+
+    int ep_fd = epoll_create(1);
+    struct epoll_event ev = {0};
+    struct epoll_event events[1] = {0};
+    ev.data.fd = connection->sockfd;
+    ev.events = EPOLLIN;
+    if(0 != epoll_ctl(ep_fd, EPOLL_CTL_ADD, connection->sockfd, &ev)) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "epoll_ctl: %s",
+                     strerror(errno));
+        UA_close(ep_fd);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    int rv = epoll_wait(ep_fd, events, 1, (int)timeout);
+    if(rv == 0) {
+        UA_close(ep_fd);
+        return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    }
+
+    if(rv == -1) {
+        UA_close(ep_fd);
+        /* The call to select was interrupted. Act as if it timed out. */
+        if(UA_ERRNO == UA_INTERRUPTED) {
+            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        }
+
+        /* The error cannot be recovered. Close the connection. */
+        connection->close(connection);
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
+    UA_close(ep_fd);
+    return UA_STATUSCODE_GOOD;
+}
+#else
+
+static UA_StatusCode connection_multiplexing(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
     if(connection->state == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -111,6 +156,19 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         /* The error cannot be recovered. Close the connection. */
         connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
+static UA_StatusCode
+connection_recv(UA_Connection *connection, UA_ByteString *response,
+                UA_UInt32 timeout) {
+    /* Neuron multiplexing implemention*/
+    UA_StatusCode code = connection_multiplexing(connection, response, timeout);
+    if(UA_STATUSCODE_GOOD != code) {
+        return code;
     }
 
     UA_Boolean internallyAllocated = !response->length;
@@ -689,6 +747,79 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
     connection->handle = NULL;
 }
 
+#ifndef NEURON_USE_SELECT
+
+static UA_StatusCode
+client_connection_tcp_multiplexing(int *size, UA_Connection *connection,
+                                   TCPClientConnection *tcpConnection,
+                                   UA_UInt32 timeout_usec, const UA_Logger *logger) {
+    int ep_fd = epoll_create(1);
+    struct epoll_event ev = {0};
+    struct epoll_event events[1] = {0};
+    ev.data.fd = connection->sockfd;
+    ev.events = EPOLLOUT;
+    if(0 != epoll_ctl(ep_fd, EPOLL_CTL_ADD, connection->sockfd, &ev)) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "epoll_ctl: %s",
+                     strerror(errno));
+        UA_close(ep_fd);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_UInt32 timeout = timeout_usec / 1000;
+    int rv = epoll_wait(ep_fd, events, 1, (int)timeout);
+    if(rv == -1) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "Connection to %.*s failed with error: %s",
+                       (int)tcpConnection->endpointUrl.length,
+                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
+        UA_close(ep_fd);
+        ClientNetworkLayerTCP_close(connection);
+        return UA_STATUSCODE_BADDISCONNECT;
+    }
+
+    *size = rv;
+    UA_close(ep_fd);
+    return UA_STATUSCODE_GOOD;
+}
+#else
+
+static UA_StatusCode
+client_connection_tcp_multiplexing(int *size, UA_Connection *connection,
+                                   TCPClientConnection *tcpConnection,
+                                   UA_UInt32 timeout_usec, const UA_Logger *logger) {
+    /* Wait in a select-call until the connection fully opens or the timeout
+     * happens */
+
+    /* On windows select both writing and error fdset */
+    fd_set writing_fdset;
+    FD_ZERO(&writing_fdset);
+    UA_fd_set(connection->sockfd, &writing_fdset);
+    fd_set error_fdset;
+    FD_ZERO(&error_fdset);
+#ifdef _WIN32
+    UA_fd_set(connection->sockfd, &error_fdset);
+#endif
+    struct timeval tmptv = {(long int)(timeout_usec / 1000000),
+                            (int)(timeout_usec % 1000000)};
+
+    int ret = UA_select((UA_Int32)(connection->sockfd + 1), NULL, &writing_fdset,
+                        &error_fdset, &tmptv);
+
+    // When select fails abort connection
+    if(ret == -1) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "Connection to %.*s failed with error: %s",
+                       (int)tcpConnection->endpointUrl.length,
+                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
+        ClientNetworkLayerTCP_close(connection);
+        return UA_STATUSCODE_BADDISCONNECT;
+    }
+
+    *size = UA_fd_isset(connection->sockfd, &writing_fdset);
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 UA_StatusCode
 UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
                             const UA_Logger *logger) {
@@ -728,13 +859,6 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "Could not create client socket: %s", strerror(UA_ERRNO));
             ClientNetworkLayerTCP_close(connection);
-            return UA_STATUSCODE_BADDISCONNECT;
-        }
-
-        if(connection->sockfd >= FD_SETSIZE) {
-            UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                                                    "Client socket exceeds FD_SETSIZE: %s", errno_str));
-            UA_close(connection->sockfd);
             return UA_STATUSCODE_BADDISCONNECT;
         }
 
@@ -799,35 +923,14 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
             break;
     } while(resultsize == 0);
 #else
-    /* Wait in a select-call until the connection fully opens or the timeout
-     * happens */
-
-    /* On windows select both writing and error fdset */
-    fd_set writing_fdset;
-    FD_ZERO(&writing_fdset);
-    UA_fd_set(connection->sockfd, &writing_fdset);
-    fd_set error_fdset;
-    FD_ZERO(&error_fdset);
-#ifdef _WIN32
-    UA_fd_set(connection->sockfd, &error_fdset);
-#endif
-    struct timeval tmptv = {(long int)(timeout_usec / 1000000),
-                            (int)(timeout_usec % 1000000)};
-
-    int ret = UA_select((UA_Int32)(connection->sockfd + 1), NULL, &writing_fdset,
-                        &error_fdset, &tmptv);
-
-    // When select fails abort connection
-    if(ret == -1) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Connection to %.*s failed with error: %s",
-                       (int)tcpConnection->endpointUrl.length,
-                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
-        ClientNetworkLayerTCP_close(connection);
-        return UA_STATUSCODE_BADDISCONNECT;
+    /* Neuron multiplexing implemention*/
+    int resultsize = 0;
+    int ret = 0;
+    UA_StatusCode rv = client_connection_tcp_multiplexing(&resultsize, connection, tcpConnection,
+                                                              timeout_usec, logger);
+    if(rv!= UA_STATUSCODE_GOOD) {
+        return rv;
     }
-
-    int resultsize = UA_fd_isset(connection->sockfd, &writing_fdset);
 #endif
 
     /* Any errors on the socket reported? */

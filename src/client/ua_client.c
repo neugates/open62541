@@ -17,6 +17,8 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
+#include <pthread.h>
+
 #include <open62541/types_generated_encoding_binary.h>
 #include "open62541/transport_generated.h"
 
@@ -30,6 +32,7 @@
 
 static void
 UA_Client_init(UA_Client* client) {
+    pthread_mutex_init(&client->asyncServiceMutex, NULL);
     UA_SecureChannel_init(&client->channel, &client->config.localConnectionConfig);
     client->connectStatus = UA_STATUSCODE_GOOD;
     UA_Timer_init(&client->timer);
@@ -95,6 +98,7 @@ UA_Client_clear(UA_Client *client) {
 
     /* Delete the timed work */
     UA_Timer_clear(&client->timer);
+    pthread_mutex_destroy(&client->asyncServiceMutex);
 }
 
 void
@@ -232,6 +236,7 @@ static UA_StatusCode
 processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *responseTypeId,
                      const UA_ByteString *responseMessage, size_t *offset) {
     /* Find the callback */
+    pthread_mutex_lock(&client->asyncServiceMutex);
     AsyncServiceCall *ac;
     LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
         if(ac->requestId == requestId)
@@ -243,11 +248,14 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
      * Bad_SecurityChecksFailed error is reported. The RequestId only needs to
      * be verified by the Client since only the Client knows if it is valid or
      * not.*/
-    if(!ac)
+    if(!ac) {
+        pthread_mutex_unlock(&client->asyncServiceMutex);
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
 
     /* Dequeue ac. We might disconnect (remove all ac) in the callback. */
     LIST_REMOVE(ac, pointers);
+    pthread_mutex_unlock(&client->asyncServiceMutex);
 
     /* Verify the type of the response */
     UA_Response response;
@@ -500,11 +508,13 @@ UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
 
 void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
     AsyncServiceCall *ac, *ac_tmp;
+    pthread_mutex_lock(&client->asyncServiceMutex);
     LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
         LIST_REMOVE(ac, pointers);
         UA_Client_AsyncService_cancel(client, ac, statusCode);
         UA_free(ac);
     }
+    pthread_mutex_unlock(&client->asyncServiceMutex);
 }
 
 UA_StatusCode
@@ -541,7 +551,9 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
     ac->start = UA_DateTime_nowMonotonic();
 
     /* Store the entry for async processing */
+    pthread_mutex_lock(&client->asyncServiceMutex);
     LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
+    pthread_mutex_unlock(&client->asyncServiceMutex);
     if(requestId)
         *requestId = ac->requestId;
 
@@ -598,6 +610,7 @@ static void
 asyncServiceTimeoutCheck(UA_Client *client) {
     AsyncServiceCall *ac, *ac_tmp;
     UA_DateTime now = UA_DateTime_nowMonotonic();
+    pthread_mutex_lock(&client->asyncServiceMutex);
     LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
         if(!ac->timeout)
            continue;
@@ -607,6 +620,7 @@ asyncServiceTimeoutCheck(UA_Client *client) {
             UA_free(ac);
         }
     }
+    pthread_mutex_unlock(&client->asyncServiceMutex);
 }
 
 static void

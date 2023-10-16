@@ -145,6 +145,7 @@ struct UA_Client {
     UA_Boolean pendingConnectivityCheck;
 
     /* Async Service */
+    pthread_mutex_t asyncServiceMutex;
     LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
     LIST_HEAD(, CustomCallback) customCallbacks;
 
