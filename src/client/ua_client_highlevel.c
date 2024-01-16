@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -66,7 +66,7 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
     bReq.nodesToBrowse = UA_BrowseDescription_new();
     bReq.nodesToBrowseSize = 1;
     UA_NodeId_copy(&parentNodeId, &bReq.nodesToBrowse[0].nodeId);
-    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
+    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;  // return everything
     bReq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH;
 
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
@@ -140,7 +140,8 @@ UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId,
     UA_DeleteReferencesRequest_init(&request);
     request.referencesToDelete = &item;
     request.referencesToDeleteSize = 1;
-    UA_DeleteReferencesResponse response = UA_Client_Service_deleteReferences(client, request);
+    UA_DeleteReferencesResponse response =
+        UA_Client_Service_deleteReferences(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_DeleteReferencesResponse_clear(&response);
@@ -199,7 +200,8 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
     item.typeDefinition.nodeId = typeDefinition;
     item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     item.nodeAttributes.content.decoded.type = attributeType;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr; // hack. is not written into.
+    item.nodeAttributes.content.decoded.data =
+        (void *)(uintptr_t)attr;  // hack. is not written into.
     request.nodesToAdd = &item;
     request.nodesToAddSize = 1;
     UA_AddNodesResponse response = UA_Client_Service_addNodes(client, request);
@@ -233,9 +235,8 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
 #ifdef UA_ENABLE_METHODCALLS
 
 UA_StatusCode
-UA_Client_call(UA_Client *client, const UA_NodeId objectId,
-               const UA_NodeId methodId, size_t inputSize,
-               const UA_Variant *input, size_t *outputSize,
+UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId,
+               size_t inputSize, const UA_Variant *input, size_t *outputSize,
                UA_Variant **output) {
     /* Set up the request */
     UA_CallRequest request;
@@ -244,7 +245,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
     UA_CallMethodRequest_init(&item);
     item.methodId = methodId;
     item.objectId = objectId;
-    item.inputArguments = (UA_Variant *)(void*)(uintptr_t)input; // cast const...
+    item.inputArguments = (UA_Variant *)(void *)(uintptr_t)input;  // cast const...
     item.inputArgumentsSize = inputSize;
     request.methodsToCall = &item;
     request.methodsToCallSize = 1;
@@ -285,17 +286,17 @@ __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
                            UA_AttributeId attributeId, const void *in,
                            const UA_DataType *inDataType) {
     if(!in)
-      return UA_STATUSCODE_BADTYPEMISMATCH;
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
     wValue.nodeId = *nodeId;
     wValue.attributeId = attributeId;
     if(attributeId == UA_ATTRIBUTEID_VALUE)
-        wValue.value.value = *(const UA_Variant*)in;
+        wValue.value.value = *(const UA_Variant *)in;
     else
         /* hack. is never written into. */
-        UA_Variant_setScalar(&wValue.value.value, (void*)(uintptr_t)in, inDataType);
+        UA_Variant_setScalar(&wValue.value.value, (void *)(uintptr_t)in, inDataType);
     wValue.value.hasValue = true;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
@@ -321,13 +322,13 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
                                         size_t newArrayDimensionsSize,
                                         const UA_UInt32 *newArrayDimensions) {
     if(!newArrayDimensions)
-      return UA_STATUSCODE_BADTYPEMISMATCH;
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
     wValue.nodeId = nodeId;
     wValue.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
-    UA_Variant_setArray(&wValue.value.value, (void*)(uintptr_t)newArrayDimensions,
+    UA_Variant_setArray(&wValue.value.value, (void *)(uintptr_t)newArrayDimensions,
                         newArrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
     wValue.value.hasValue = true;
     UA_WriteRequest wReq;
@@ -394,9 +395,8 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
         memcpy(out, &res->value, sizeof(UA_Variant));
         UA_Variant_init(&res->value);
     } else if(attributeId == UA_ATTRIBUTEID_NODECLASS) {
-        memcpy(out, (UA_NodeClass*)res->value.data, sizeof(UA_NodeClass));
-    } else if(UA_Variant_isScalar(&res->value) &&
-              res->value.type == outDataType) {
+        memcpy(out, (UA_NodeClass *)res->value.data, sizeof(UA_NodeClass));
+    } else if(UA_Variant_isScalar(&res->value) && res->value.type == outDataType) {
         memcpy(out, res->value.data, res->value.type->memSize);
         UA_free(res->value.data);
         res->value.data = NULL;
@@ -424,13 +424,12 @@ processReadArrayDimensionsResult(UA_ReadResponse *response,
         return retval;
 
     UA_DataValue *res = &response->results[0];
-    if(!res->hasValue ||
-       UA_Variant_isScalar(&res->value) ||
+    if(!res->hasValue || UA_Variant_isScalar(&res->value) ||
        res->value.type != &UA_TYPES[UA_TYPES_UINT32])
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
     /* Move results */
-    *outArrayDimensions = (UA_UInt32*)res->value.data;
+    *outArrayDimensions = (UA_UInt32 *)res->value.data;
     *outArrayDimensionsSize = res->value.arrayLength;
     res->value.data = NULL;
     res->value.arrayLength = 0;
@@ -463,7 +462,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
 #ifdef UA_ENABLE_HISTORIZING
 static UA_HistoryReadResponse
 __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
-                        UA_ExtensionObject* details, UA_String indexRange,
+                        UA_ExtensionObject *details, UA_String indexRange,
                         UA_TimestampsToReturn timestampsToReturn,
                         UA_ByteString continuationPoint, UA_Boolean releaseConti) {
 
@@ -480,8 +479,8 @@ __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
 
     request.nodesToRead = &item;
     request.nodesToReadSize = 1;
-    request.timestampsToReturn = timestampsToReturn; // Defaults to Source
-    request.releaseContinuationPoints = releaseConti; // No values are returned, if true
+    request.timestampsToReturn = timestampsToReturn;   // Defaults to Source
+    request.releaseContinuationPoints = releaseConti;  // No values are returned, if true
 
     /* Build ReadDetails */
     request.historyReadDetails = *details;
@@ -491,10 +490,10 @@ __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
 
 static UA_StatusCode
 __UA_Client_HistoryRead_service(UA_Client *client, const UA_NodeId *nodeId,
-                                   const UA_HistoricalIteratorCallback callback,
-                                   UA_ExtensionObject *details, UA_String indexRange,
-                                   UA_TimestampsToReturn timestampsToReturn,
-                                   void *callbackContext) {
+                                const UA_HistoricalIteratorCallback callback,
+                                UA_ExtensionObject *details, UA_String indexRange,
+                                UA_TimestampsToReturn timestampsToReturn,
+                                void *callbackContext) {
 
     UA_ByteString continuationPoint = UA_BYTESTRING_NULL;
     UA_Boolean continuationAvail = false;
@@ -505,23 +504,25 @@ __UA_Client_HistoryRead_service(UA_Client *client, const UA_NodeId *nodeId,
         /* We release the continuation point, if no more data is requested by the user */
         UA_Boolean cleanup = !fetchMore && continuationAvail;
         UA_HistoryReadResponse response =
-            __UA_Client_HistoryRead(client, nodeId, details, indexRange, timestampsToReturn, continuationPoint, cleanup);
+            __UA_Client_HistoryRead(client, nodeId, details, indexRange,
+                                    timestampsToReturn, continuationPoint, cleanup);
 
-        if (cleanup) {
+        if(cleanup) {
             retval = response.responseHeader.serviceResult;
-cleanup:    UA_HistoryReadResponse_clear(&response);
+        cleanup:
+            UA_HistoryReadResponse_clear(&response);
             UA_ByteString_clear(&continuationPoint);
             return retval;
         }
 
         retval = response.responseHeader.serviceResult;
-        if (retval == UA_STATUSCODE_GOOD) {
-            if (response.resultsSize == 1)
+        if(retval == UA_STATUSCODE_GOOD) {
+            if(response.resultsSize == 1)
                 retval = response.results[0].statusCode;
             else
                 retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
         }
-        if (retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
 
         UA_HistoryReadResult *res = response.results;
@@ -532,11 +533,12 @@ cleanup:    UA_HistoryReadResponse_clear(&response);
         continuationAvail = !UA_ByteString_equal(&continuationPoint, &UA_BYTESTRING_NULL);
 
         /* Client callback with possibility to request further values */
-        fetchMore = callback(client, nodeId, continuationAvail, &res->historyData, callbackContext);
+        fetchMore = callback(client, nodeId, continuationAvail, &res->historyData,
+                             callbackContext);
 
         /* Regular cleanup */
         UA_HistoryReadResponse_clear(&response);
-    } while (continuationAvail);
+    } while(continuationAvail);
 
     return retval;
 }
@@ -544,17 +546,20 @@ cleanup:    UA_HistoryReadResponse_clear(&response);
 #ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
 UA_StatusCode
 UA_Client_HistoryRead_events(UA_Client *client, const UA_NodeId *nodeId,
-                                const UA_HistoricalIteratorCallback callback,
-                                UA_DateTime startTime, UA_DateTime endTime,
-                                UA_String indexRange, const UA_EventFilter filter, UA_UInt32 numValuesPerNode,
-                                UA_TimestampsToReturn timestampsToReturn, void *callbackContext) {
+                             const UA_HistoricalIteratorCallback callback,
+                             UA_DateTime startTime, UA_DateTime endTime,
+                             UA_String indexRange, const UA_EventFilter filter,
+                             UA_UInt32 numValuesPerNode,
+                             UA_TimestampsToReturn timestampsToReturn,
+                             void *callbackContext) {
 
     UA_ReadEventDetails details;
     UA_ReadEventDetails_init(&details);
     details.filter = filter;
 
     // At least two of the following parameters must be set
-    details.numValuesPerNode = numValuesPerNode; // 0 = return all / max server is capable of
+    details.numValuesPerNode =
+        numValuesPerNode;  // 0 = return all / max server is capable of
     details.startTime = startTime;
     details.endTime = endTime;
 
@@ -564,69 +569,77 @@ UA_Client_HistoryRead_events(UA_Client *client, const UA_NodeId *nodeId,
     detailsExtensionObject.content.decoded.data = &details;
     detailsExtensionObject.encoding = UA_EXTENSIONOBJECT_DECODED;
 
-    return __UA_Client_HistoryRead_service(client, nodeId, callback, &detailsExtensionObject,
-                                              indexRange, timestampsToReturn, callbackContext);
+    return __UA_Client_HistoryRead_service(client, nodeId, callback,
+                                           &detailsExtensionObject, indexRange,
+                                           timestampsToReturn, callbackContext);
 }
-#endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
+#endif  // UA_ENABLE_EXPERIMENTAL_HISTORIZING
 
 static UA_StatusCode
 __UA_Client_HistoryRead_service_rawMod(UA_Client *client, const UA_NodeId *nodeId,
-                                          const UA_HistoricalIteratorCallback callback,
-                                          UA_DateTime startTime,UA_DateTime endTime,
-                                          UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 numValuesPerNode,
-                                          UA_Boolean readModified, UA_TimestampsToReturn timestampsToReturn,
-                                          void *callbackContext) {
+                                       const UA_HistoricalIteratorCallback callback,
+                                       UA_DateTime startTime, UA_DateTime endTime,
+                                       UA_String indexRange, UA_Boolean returnBounds,
+                                       UA_UInt32 numValuesPerNode,
+                                       UA_Boolean readModified,
+                                       UA_TimestampsToReturn timestampsToReturn,
+                                       void *callbackContext) {
 
     UA_ReadRawModifiedDetails details;
     UA_ReadRawModifiedDetails_init(&details);
-    details.isReadModified = readModified; // Return only modified values
-    details.returnBounds = returnBounds;   // Return values pre / post given range
+    details.isReadModified = readModified;  // Return only modified values
+    details.returnBounds = returnBounds;    // Return values pre / post given range
 
     // At least two of the following parameters must be set
-    details.numValuesPerNode = numValuesPerNode;   // 0 = return all / max server is capable of
+    details.numValuesPerNode =
+        numValuesPerNode;  // 0 = return all / max server is capable of
     details.startTime = startTime;
     details.endTime = endTime;
 
     UA_ExtensionObject detailsExtensionObject;
     UA_ExtensionObject_init(&detailsExtensionObject);
-    detailsExtensionObject.content.decoded.type = &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
+    detailsExtensionObject.content.decoded.type =
+        &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
     detailsExtensionObject.content.decoded.data = &details;
     detailsExtensionObject.encoding = UA_EXTENSIONOBJECT_DECODED;
 
     return __UA_Client_HistoryRead_service(client, nodeId, callback,
-                                              &detailsExtensionObject, indexRange,
-                                              timestampsToReturn, callbackContext);
+                                           &detailsExtensionObject, indexRange,
+                                           timestampsToReturn, callbackContext);
 }
 
 UA_StatusCode
 UA_Client_HistoryRead_raw(UA_Client *client, const UA_NodeId *nodeId,
-                             const UA_HistoricalIteratorCallback callback,
-                             UA_DateTime startTime, UA_DateTime endTime,
-                             UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 numValuesPerNode,
-                             UA_TimestampsToReturn timestampsToReturn, void *callbackContext) {
+                          const UA_HistoricalIteratorCallback callback,
+                          UA_DateTime startTime, UA_DateTime endTime,
+                          UA_String indexRange, UA_Boolean returnBounds,
+                          UA_UInt32 numValuesPerNode,
+                          UA_TimestampsToReturn timestampsToReturn,
+                          void *callbackContext) {
 
-    return __UA_Client_HistoryRead_service_rawMod(client, nodeId, callback, startTime, endTime, indexRange, returnBounds,
-                                                     numValuesPerNode, false, timestampsToReturn, callbackContext);
+    return __UA_Client_HistoryRead_service_rawMod(
+        client, nodeId, callback, startTime, endTime, indexRange, returnBounds,
+        numValuesPerNode, false, timestampsToReturn, callbackContext);
 }
 
 #ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
 UA_StatusCode
 UA_Client_HistoryRead_modified(UA_Client *client, const UA_NodeId *nodeId,
-                                  const UA_HistoricalIteratorCallback callback,
-                                  UA_DateTime startTime, UA_DateTime endTime,
-                                  UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 maxItems,
-                                  UA_TimestampsToReturn timestampsToReturn, void *callbackContext) {
+                               const UA_HistoricalIteratorCallback callback,
+                               UA_DateTime startTime, UA_DateTime endTime,
+                               UA_String indexRange, UA_Boolean returnBounds,
+                               UA_UInt32 maxItems,
+                               UA_TimestampsToReturn timestampsToReturn,
+                               void *callbackContext) {
 
-    return __UA_Client_HistoryRead_service_rawMod(client, nodeId, callback, startTime, endTime, indexRange, returnBounds,
-                                                     maxItems, true, timestampsToReturn, callbackContext);
+    return __UA_Client_HistoryRead_service_rawMod(
+        client, nodeId, callback, startTime, endTime, indexRange, returnBounds, maxItems,
+        true, timestampsToReturn, callbackContext);
 }
-#endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
+#endif  // UA_ENABLE_EXPERIMENTAL_HISTORIZING
 
 static UA_HistoryUpdateResponse
-__UA_Client_HistoryUpdate(UA_Client *client,
-                          void *details,
-                          size_t typeId)
-{
+__UA_Client_HistoryUpdate(UA_Client *client, void *details, size_t typeId) {
     UA_HistoryUpdateRequest request;
     UA_HistoryUpdateRequest_init(&request);
 
@@ -645,11 +658,8 @@ __UA_Client_HistoryUpdate(UA_Client *client,
 }
 
 static UA_StatusCode
-__UA_Client_HistoryUpdate_updateData(UA_Client *client,
-                          const UA_NodeId *nodeId,
-                          UA_PerformUpdateType type,
-                          UA_DataValue *value)
-{
+__UA_Client_HistoryUpdate_updateData(UA_Client *client, const UA_NodeId *nodeId,
+                                     UA_PerformUpdateType type, UA_DataValue *value) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_UpdateDataDetails details;
     UA_UpdateDataDetails_init(&details);
@@ -661,15 +671,15 @@ __UA_Client_HistoryUpdate_updateData(UA_Client *client,
 
     UA_HistoryUpdateResponse response;
     response = __UA_Client_HistoryUpdate(client, &details, UA_TYPES_UPDATEDATADETAILS);
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         ret = response.responseHeader.serviceResult;
         goto cleanup;
     }
-    if (response.resultsSize != 1 || response.results[0].operationResultsSize != 1) {
+    if(response.resultsSize != 1 || response.results[0].operationResultsSize != 1) {
         ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
         goto cleanup;
     }
-    if (response.results[0].statusCode != UA_STATUSCODE_GOOD) {
+    if(response.results[0].statusCode != UA_STATUSCODE_GOOD) {
         ret = response.results[0].statusCode;
         goto cleanup;
     }
@@ -681,44 +691,29 @@ cleanup:
 }
 
 UA_StatusCode
-UA_Client_HistoryUpdate_insert(UA_Client *client,
-                               const UA_NodeId *nodeId,
-                               UA_DataValue *value)
-{
-    return __UA_Client_HistoryUpdate_updateData(client,
-                                                nodeId,
-                                                UA_PERFORMUPDATETYPE_INSERT,
-                                                value);
+UA_Client_HistoryUpdate_insert(UA_Client *client, const UA_NodeId *nodeId,
+                               UA_DataValue *value) {
+    return __UA_Client_HistoryUpdate_updateData(client, nodeId,
+                                                UA_PERFORMUPDATETYPE_INSERT, value);
 }
 
 UA_StatusCode
-UA_Client_HistoryUpdate_replace(UA_Client *client,
-                                const UA_NodeId *nodeId,
-                                UA_DataValue *value)
-{
-    return __UA_Client_HistoryUpdate_updateData(client,
-                                                nodeId,
-                                                UA_PERFORMUPDATETYPE_REPLACE,
-                                                value);
+UA_Client_HistoryUpdate_replace(UA_Client *client, const UA_NodeId *nodeId,
+                                UA_DataValue *value) {
+    return __UA_Client_HistoryUpdate_updateData(client, nodeId,
+                                                UA_PERFORMUPDATETYPE_REPLACE, value);
 }
 
 UA_StatusCode
-UA_Client_HistoryUpdate_update(UA_Client *client,
-                               const UA_NodeId *nodeId,
-                               UA_DataValue *value)
-{
-    return __UA_Client_HistoryUpdate_updateData(client,
-                                                nodeId,
-                                                UA_PERFORMUPDATETYPE_UPDATE,
-                                                value);
+UA_Client_HistoryUpdate_update(UA_Client *client, const UA_NodeId *nodeId,
+                               UA_DataValue *value) {
+    return __UA_Client_HistoryUpdate_updateData(client, nodeId,
+                                                UA_PERFORMUPDATETYPE_UPDATE, value);
 }
 
 UA_StatusCode
-UA_Client_HistoryUpdate_deleteRaw(UA_Client *client,
-                                  const UA_NodeId *nodeId,
-                                  UA_DateTime startTimestamp,
-                                  UA_DateTime endTimestamp)
-{
+UA_Client_HistoryUpdate_deleteRaw(UA_Client *client, const UA_NodeId *nodeId,
+                                  UA_DateTime startTimestamp, UA_DateTime endTimestamp) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
 
     UA_DeleteRawModifiedDetails details;
@@ -730,12 +725,13 @@ UA_Client_HistoryUpdate_deleteRaw(UA_Client *client,
     UA_NodeId_copy(nodeId, &details.nodeId);
 
     UA_HistoryUpdateResponse response;
-    response = __UA_Client_HistoryUpdate(client, &details, UA_TYPES_DELETERAWMODIFIEDDETAILS);
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    response =
+        __UA_Client_HistoryUpdate(client, &details, UA_TYPES_DELETERAWMODIFIEDDETAILS);
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         ret = response.responseHeader.serviceResult;
         goto cleanup;
     }
-    if (response.resultsSize != 1) {
+    if(response.resultsSize != 1) {
         ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
         goto cleanup;
     }
@@ -747,7 +743,7 @@ cleanup:
     UA_NodeId_clear(&details.nodeId);
     return ret;
 }
-#endif // UA_ENABLE_HISTORIZING
+#endif  // UA_ENABLE_HISTORIZING
 
 /* Async Functions */
 
@@ -766,9 +762,9 @@ UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
     return cc;
 }
 
-static
-void ValueAttributeRead(UA_Client *client, void *userdata,
-                        UA_UInt32 requestId, void *response) {
+static void
+ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                   void *response) {
     if(!response)
         return;
 
@@ -777,7 +773,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
     if(!cc)
         return;
 
-    UA_ReadResponse *rr = (UA_ReadResponse *) response;
+    UA_ReadResponse *rr = (UA_ReadResponse *)response;
     UA_DataValue *res = rr->results;
     UA_Boolean done = false;
     AsyncReadData *data = (AsyncReadData *)cc->clientData;
@@ -798,7 +794,8 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
     if(!done)
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Cannot process the response to the async read "
-                    "request %" PRIu32, requestId);
+                    "request %" PRIu32,
+                    requestId);
 
     UA_free(cc->clientData);
     LIST_REMOVE(cc, pointers);
@@ -807,10 +804,11 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
 
 /*Read Attributes*/
 UA_StatusCode
-__UA_Client_readAttribute_async(UA_Client *client,
-        const UA_NodeId *nodeId, UA_AttributeId attributeId,
-        const UA_DataType *outDataType, UA_ClientAsyncServiceCallback callback,
-        void *userdata, UA_UInt32 *reqId) {
+__UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
+                                UA_AttributeId attributeId,
+                                const UA_DataType *outDataType,
+                                UA_ClientAsyncServiceCallback callback, void *userdata,
+                                UA_UInt32 *reqId) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
@@ -820,8 +818,8 @@ __UA_Client_readAttribute_async(UA_Client *client,
     request.nodesToRead = &item;
     request.nodesToReadSize = 1;
 
-    CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
-    if (!cc)
+    CustomCallback *cc = (CustomCallback *)UA_malloc(sizeof(CustomCallback));
+    if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(cc, 0, sizeof(CustomCallback));
     cc->userCallback = callback;
@@ -841,51 +839,108 @@ __UA_Client_readAttribute_async(UA_Client *client,
                              &cc->callbackId);
 
     LIST_INSERT_HEAD(&client->customCallbacks, cc, pointers);
-    if (reqId != NULL)
+    if(reqId != NULL)
         *reqId = cc->callbackId;
 
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+value_attributes_read(UA_Client *client, void *userdata, UA_UInt32 request_id,
+                      void *response) {
+    if(!response) {
+        return;
+    }
+
+    CustomCallback *cc = UA_Client_findCustomCallback(client, request_id);
+    if(!cc) {
+        return;
+    }
+
+    cc->userCallback(client, cc->userData, request_id, (UA_ReadResponse *)response);
+    LIST_REMOVE(cc, pointers);
+    UA_free(cc);
+}
+
+UA_StatusCode
+__ua_client_read_attribute_async(UA_Client *client, UA_ReadRequest *request,
+                                 UA_ClientAsyncServiceCallback callback, void *userdata,
+                                 UA_UInt32 *req_id) {
+    CustomCallback *cc = (CustomCallback *)UA_malloc(sizeof(CustomCallback));
+    if(!cc) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    memset(cc, 0, sizeof(CustomCallback));
+    cc->userCallback = callback;
+    cc->userData = userdata;
+
+    __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_READREQUEST],
+                             value_attributes_read, &UA_TYPES[UA_TYPES_READRESPONSE],
+                             NULL, &cc->callbackId);
+
+    LIST_INSERT_HEAD(&client->customCallbacks, cc, pointers);
+    if(req_id != NULL) {
+        *req_id = cc->callbackId;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /*Write Attributes*/
-UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
-        const UA_NodeId *nodeId, UA_AttributeId attributeId, const void *in,
-        const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
-        void *userdata, UA_UInt32 *reqId) {
-    if (!in)
+UA_StatusCode
+__UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
+                                 UA_AttributeId attributeId, const void *in,
+                                 const UA_DataType *inDataType,
+                                 UA_ClientAsyncServiceCallback callback, void *userdata,
+                                 UA_UInt32 *reqId) {
+    if(!in)
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
     wValue.nodeId = *nodeId;
     wValue.attributeId = attributeId;
-    if (attributeId == UA_ATTRIBUTEID_VALUE)
-        wValue.value.value = *(const UA_Variant*) in;
+    if(attributeId == UA_ATTRIBUTEID_VALUE)
+        wValue.value.value = *(const UA_Variant *)in;
     else
         /* hack. is never written into. */
-        UA_Variant_setScalar(&wValue.value.value, (void*) (uintptr_t) in,
-                inDataType);
+        UA_Variant_setScalar(&wValue.value.value, (void *)(uintptr_t)in, inDataType);
     wValue.value.hasValue = true;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
     wReq.nodesToWrite = &wValue;
     wReq.nodesToWriteSize = 1;
 
-    return __UA_Client_AsyncService(client, &wReq,
-            &UA_TYPES[UA_TYPES_WRITEREQUEST], callback,
-            &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+    return __UA_Client_AsyncService(client, &wReq, &UA_TYPES[UA_TYPES_WRITEREQUEST],
+                                    callback, &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata,
+                                    reqId);
+}
+
+UA_StatusCode
+__ua_client_write_attributes_async(UA_Client *client, UA_WriteRequest *request,
+                                   UA_ClientAsyncServiceCallback callback, void *userdata,
+                                   UA_UInt32 *req_id) {
+    if(!request) {
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
+                                    callback, &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata,
+                                    req_id);
 }
 
 /*Node Management*/
 
 UA_StatusCode UA_EXPORT
 __UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
-        const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
-        const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
-        const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-        const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
-        UA_ClientAsyncServiceCallback callback, void *userdata,
-        UA_UInt32 *reqId) {
+                          const UA_NodeId requestedNewNodeId,
+                          const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName,
+                          const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
+                          const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
+                          UA_ClientAsyncServiceCallback callback, void *userdata,
+                          UA_UInt32 *reqId) {
     UA_AddNodesRequest request;
     UA_AddNodesRequest_init(&request);
     UA_AddNodesItem item;
@@ -898,22 +953,23 @@ __UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
     item.typeDefinition.nodeId = typeDefinition;
     item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     item.nodeAttributes.content.decoded.type = attributeType;
-    item.nodeAttributes.content.decoded.data = (void*) (uintptr_t) attr; // hack. is not written into.
+    item.nodeAttributes.content.decoded.data =
+        (void *)(uintptr_t)attr;  // hack. is not written into.
     request.nodesToAdd = &item;
     request.nodesToAddSize = 1;
 
-    return __UA_Client_AsyncService(client, &request,
-            &UA_TYPES[UA_TYPES_ADDNODESREQUEST], callback,
-            &UA_TYPES[UA_TYPES_ADDNODESRESPONSE], userdata, reqId);
-
+    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
+                                    callback, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE],
+                                    userdata, reqId);
 }
 
 /* Misc Highlevel Functions */
 #ifdef UA_ENABLE_METHODCALLS
-UA_StatusCode __UA_Client_call_async(UA_Client *client,
-        const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
-        const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
-        void *userdata, UA_UInt32 *reqId) {
+UA_StatusCode
+__UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
+                       const UA_NodeId methodId, size_t inputSize,
+                       const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
+                       void *userdata, UA_UInt32 *reqId) {
 
     UA_CallRequest request;
     UA_CallRequest_init(&request);
@@ -921,21 +977,22 @@ UA_StatusCode __UA_Client_call_async(UA_Client *client,
     UA_CallMethodRequest_init(&item);
     item.methodId = methodId;
     item.objectId = objectId;
-    item.inputArguments = (UA_Variant *) (void*) (uintptr_t) input; // cast const...
+    item.inputArguments = (UA_Variant *)(void *)(uintptr_t)input;  // cast const...
     item.inputArgumentsSize = inputSize;
     request.methodsToCall = &item;
     request.methodsToCallSize = 1;
 
-    return __UA_Client_AsyncService(client, &request,
-            &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
-            &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
+    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                                    callback, &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata,
+                                    reqId);
 }
 #endif
 
-UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
-        char *paths[], UA_UInt32 ids[], size_t pathSize,
-        UA_ClientAsyncServiceCallback callback, void *userdata,
-        UA_UInt32 *reqId) {
+UA_StatusCode
+__UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client, char *paths[],
+                                                UA_UInt32 ids[], size_t pathSize,
+                                                UA_ClientAsyncServiceCallback callback,
+                                                void *userdata, UA_UInt32 *reqId) {
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 

@@ -61,6 +61,11 @@ __UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                                 UA_ClientAsyncServiceCallback callback, void *userdata,
                                 UA_UInt32 *reqId);
 
+UA_StatusCode UA_EXPORT
+__ua_client_read_attribute_async(UA_Client *client, UA_ReadRequest *request,
+                                 UA_ClientAsyncServiceCallback callback, void *userdata,
+                                 UA_UInt32 *req_id);
+
 typedef void (*UA_ClientAsyncReadDataTypeAttributeCallback)(UA_Client *client,
                                                             void *userdata,
                                                             UA_UInt32 requestId,
@@ -79,6 +84,12 @@ typedef void (*UA_ClientAsyncReadValueAttributeCallback)(UA_Client *client,
                                                          void *userdata,
                                                          UA_UInt32 requestId,
                                                          UA_Variant *var);
+
+typedef void (*ua_client_async_read_value_attribute_callback)(UA_Client *client,
+                                                              void *userdata,
+                                                              UA_UInt32 request_id,
+                                                              UA_ReadResponse *response);
+
 static UA_INLINE UA_StatusCode
 UA_Client_readValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                    UA_ClientAsyncReadValueAttributeCallback callback,
@@ -86,6 +97,15 @@ UA_Client_readValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
     return __UA_Client_readAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT],
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+static UA_INLINE UA_StatusCode
+ua_client_read_value_attributes_async(
+    UA_Client *client, UA_ReadRequest *request,
+    ua_client_async_read_value_attribute_callback callback, void *userdata,
+    UA_UInt32 *req_id) {
+    return __ua_client_read_attribute_async(
+        client, request, (UA_ClientAsyncServiceCallback)callback, userdata, req_id);
 }
 
 typedef void (*UA_ClientAsyncReadNodeIdAttributeCallback)(UA_Client *client,
@@ -344,6 +364,11 @@ __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                                  UA_ClientAsyncServiceCallback callback, void *userdata,
                                  UA_UInt32 *reqId);
 
+UA_StatusCode
+__ua_client_write_attributes_async(UA_Client *client, UA_WriteRequest *request,
+                                   UA_ClientAsyncServiceCallback callback, void *userdata,
+                                   UA_UInt32 *req_id);
+
 static UA_INLINE UA_StatusCode
 UA_Client_writeValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                     const UA_Variant *newValue,
@@ -353,6 +378,15 @@ UA_Client_writeValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_VALUE, newValue, &UA_TYPES[UA_TYPES_VARIANT],
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+static UA_INLINE UA_StatusCode
+ua_client_write_value_attributes_async(UA_Client *client, UA_WriteRequest *request,
+                                       UA_ClientAsyncWriteCallback callback,
+                                       void *userdata, UA_UInt32 *req_id) {
+
+    return __ua_client_write_attributes_async(
+        client, request, (UA_ClientAsyncServiceCallback)callback, userdata, req_id);
 }
 
 static UA_INLINE UA_StatusCode
