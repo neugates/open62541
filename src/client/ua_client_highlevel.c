@@ -857,7 +857,12 @@ value_attributes_read(UA_Client *client, void *userdata, UA_UInt32 request_id,
         return;
     }
 
-    cc->userCallback(client, cc->userData, request_id, (UA_ReadResponse *)response);
+    UA_StatusCode code = ((UA_ReadResponse *)response)->responseHeader.serviceResult;
+    size_t len = ((UA_ReadResponse *)response)->resultsSize;
+    if(UA_STATUSCODE_GOOD == code && 0 != len) {
+        cc->userCallback(client, cc->userData, request_id, (UA_ReadResponse *)response);
+    }
+
     LIST_REMOVE(cc, pointers);
     UA_free(cc);
 }
