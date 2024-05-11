@@ -51,6 +51,18 @@ UA_Client_sendAsyncBrowseRequest(UA_Client *client, UA_BrowseRequest *request,
                                       reqId);
 }
 
+typedef void (*ua_client_async_browse_next_callback)(UA_Client *client, void *userdata,
+                                             UA_UInt32 request_id, UA_BrowseNextResponse *wr);
+static UA_INLINE UA_StatusCode
+ua_client_send_async_browse_next_request(UA_Client *client, UA_BrowseNextRequest  *request,
+                                 ua_client_async_browse_next_callback browse_next_callback,
+                                 void *userdata, UA_UInt32 *req_id) {
+    return UA_Client_sendAsyncRequest(client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
+                                      (UA_ClientAsyncServiceCallback)browse_next_callback,
+                                      &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE], userdata,
+                                      req_id);
+}
+
 /**
  * Read Attribute
  * ^^^^^^^^^^^^^^ */
