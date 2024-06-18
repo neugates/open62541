@@ -556,6 +556,35 @@ activateSessionAsync(UA_Client *client) {
     return retval;
 }
 
+static void sort_endpoints(UA_GetEndpointsResponse *resp) {
+    if(resp->endpointsSize < 1) {
+        return;
+    }
+
+    if(NULL == resp->endpoints) {
+        return;
+    }
+
+    if(UA_MESSAGESECURITYMODE_NONE == resp->endpoints->securityMode) {
+        return;
+    }
+
+    size_t index = 0;
+    for(size_t i = 0; i < resp->endpointsSize; i++) {
+        if(UA_MESSAGESECURITYMODE_NONE == resp->endpoints[i].securityMode) {
+            index = i;
+        }
+    }
+
+    if(index == 0) {
+        return;
+    }
+
+    UA_EndpointDescription temp = resp->endpoints[0];
+    resp->endpoints[0] = resp->endpoints[index];
+    resp->endpoints[index] = temp;
+}
+
 /* Combination of UA_Client_getEndpointsInternal and getEndpoints */
 static void
 responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
@@ -577,6 +606,8 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_Boolean tokenFound = false;
     const UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
                                                 "Transport/uatcp-uasc-uabinary");
+
+    sort_endpoints(resp); // UA_MESSAGESECURITYMODE_NONE first
 
     // TODO: compare endpoint information with client->endpointUri
     UA_EndpointDescription* endpointArray = resp->endpoints;
