@@ -845,6 +845,17 @@ __UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
     return UA_STATUSCODE_GOOD;
 }
 
+void __ua_client_read_attribute_custome_cb_clear(UA_Client *client)
+{
+    CustomCallback *cc = NULL;
+    CustomCallback *cc_tmp = NULL;
+    LIST_FOREACH_SAFE(cc, &client->customCallbacks, pointers, cc_tmp) {
+        LIST_REMOVE(cc, pointers);
+        UA_free(cc->clientData);
+        UA_free(cc);
+    }
+}
+
 static void
 value_attributes_read(UA_Client *client, void *userdata, UA_UInt32 request_id,
                       void *response) {

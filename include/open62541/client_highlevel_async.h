@@ -72,6 +72,8 @@ __UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                                 const UA_DataType *outDataType,
                                 UA_ClientAsyncServiceCallback callback, void *userdata,
                                 UA_UInt32 *reqId);
+void UA_EXPORT
+__ua_client_read_attribute_custome_cb_clear(UA_Client *client);
 
 UA_StatusCode UA_EXPORT
 __ua_client_read_attribute_async(UA_Client *client, UA_ReadRequest *request,
@@ -118,6 +120,12 @@ ua_client_read_value_attributes_async(
     UA_UInt32 *req_id) {
     return __ua_client_read_attribute_async(
         client, request, (UA_ClientAsyncServiceCallback)callback, userdata, req_id);
+}
+
+
+static UA_INLINE void ua_client_custome_callback_clear(UA_Client *client)
+{
+    __ua_client_read_attribute_custome_cb_clear(client);
 }
 
 typedef void (*UA_ClientAsyncReadNodeIdAttributeCallback)(UA_Client *client,
