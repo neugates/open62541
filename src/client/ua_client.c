@@ -119,6 +119,15 @@ UA_Client_getState(UA_Client *client, UA_SecureChannelState *channelState,
         *connectStatus = client->connectStatus;
 }
 
+
+UA_Boolean ua_client_get_no_session(UA_Client *client) {
+    return client->noSession;
+}
+
+void ua_client_set_no_session(UA_Client *client, UA_Boolean no_session) {
+    client->noSession = no_session;
+}
+
 UA_ClientConfig *
 UA_Client_getConfig(UA_Client *client) {
     if(!client)

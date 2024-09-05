@@ -186,6 +186,11 @@ UA_Client_getState(UA_Client *client,
                    UA_SessionState *sessionState,
                    UA_StatusCode *connectStatus);
 
+
+UA_Boolean UA_EXPORT ua_client_get_no_session(UA_Client *client);
+
+void UA_EXPORT ua_client_set_no_session(UA_Client *client, UA_Boolean no_session);
+
 /* Get the client configuration */
 UA_EXPORT UA_ClientConfig *
 UA_Client_getConfig(UA_Client *client);
