@@ -262,6 +262,22 @@ UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
     return UA_Client_connect(client, endpointUrl);
 }
 
+static UA_INLINE UA_StatusCode
+ua_client_connect_username_async(UA_Client *client, const char *endpointUrl,
+                          const char *username, const char *password) {
+    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
+    if(!identityToken)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    identityToken->userName = UA_STRING_ALLOC(username);
+    identityToken->password = UA_STRING_ALLOC(password);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ExtensionObject_clear(&cc->userIdentityToken);
+    cc->userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
+    cc->userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+    cc->userIdentityToken.content.decoded.data = identityToken;
+    return UA_Client_connectAsync(client, endpointUrl);
+}
+
 /* Disconnect and close a connection to the selected server. Disconnection is
  * always performed async (without blocking). */
 UA_StatusCode UA_EXPORT
