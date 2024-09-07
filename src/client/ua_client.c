@@ -119,6 +119,18 @@ UA_Client_getState(UA_Client *client, UA_SecureChannelState *channelState,
         *connectStatus = client->connectStatus;
 }
 
+UA_SecureChannelState ua_client_get_channel_state(UA_Client *client) {
+    return client->channel.state;
+}
+
+UA_SessionState ua_client_get_session_state(UA_Client *client) {
+    return client->sessionState;
+}
+
+UA_StatusCode ua_client_get_connect_status(UA_Client *client) {
+    return client->connectStatus;
+}
+
 
 UA_Boolean ua_client_get_no_session(UA_Client *client) {
     return client->noSession;

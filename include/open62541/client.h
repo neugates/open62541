@@ -186,6 +186,11 @@ UA_Client_getState(UA_Client *client,
                    UA_SessionState *sessionState,
                    UA_StatusCode *connectStatus);
 
+UA_SecureChannelState UA_EXPORT ua_client_get_channel_state(UA_Client *client);
+
+UA_SessionState UA_EXPORT ua_client_get_session_state(UA_Client *client);
+
+UA_StatusCode UA_EXPORT ua_client_get_connect_status(UA_Client *client);
 
 UA_Boolean UA_EXPORT ua_client_get_no_session(UA_Client *client);
 
