@@ -50,12 +50,25 @@ connection_releaserecvbuffer(UA_Connection *connection,
     UA_ByteString_clear(buf);
 }
 
+#ifndef NEURON_USE_SELECT
+static UA_StatusCode 
+connection_multiplexing_write(UA_Connection *connection, UA_UInt32 timeout);
+#endif
+
 static UA_StatusCode
 connection_write(UA_Connection *connection, UA_ByteString *buf) {
     if(connection->state == UA_CONNECTIONSTATE_CLOSED) {
         UA_ByteString_clear(buf);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
+
+#ifndef NEURON_USE_SELECT
+    UA_StatusCode code = connection_multiplexing_write(connection, 50);
+    if(UA_STATUSCODE_GOOD !=code) {
+        UA_ByteString_clear(buf);
+        return code;
+    }
+#endif
 
     /* Prevent OS signals when sending to a closed socket */
     int flags = 0;
@@ -121,6 +134,40 @@ connection_multiplexing(UA_Connection *connection, UA_ByteString *response,
         }
 
         /* The error cannot be recovered. Close the connection. */
+        connection->close(connection);
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
+    UA_close(ep_fd);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+connection_multiplexing_write(UA_Connection *connection, UA_UInt32 timeout) {
+    int ep_fd = epoll_create(1);
+    struct epoll_event ev = {0};
+    struct epoll_event events[1] = {0};
+    ev.data.fd = connection->sockfd;
+    ev.events = EPOLLOUT;
+    if(0 != epoll_ctl(ep_fd, EPOLL_CTL_ADD, connection->sockfd, &ev)) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "pollout, epoll_ctl: %s",
+                     strerror(errno));
+        UA_close(ep_fd);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    int rv = epoll_wait(ep_fd, events, 1, (int)timeout);
+    if(rv == 0) {
+        UA_close(ep_fd);
+        return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    }
+
+    if(rv == -1) {
+        UA_close(ep_fd);
+        if(UA_ERRNO == UA_INTERRUPTED) {
+            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        }
+
         connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
