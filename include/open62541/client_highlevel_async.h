@@ -384,7 +384,7 @@ __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                                  UA_ClientAsyncServiceCallback callback, void *userdata,
                                  UA_UInt32 *reqId);
 
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 __ua_client_write_attributes_async(UA_Client *client, UA_WriteRequest *request,
                                    UA_ClientAsyncServiceCallback callback, void *userdata,
                                    UA_UInt32 *req_id);
