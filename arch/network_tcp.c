@@ -925,6 +925,13 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         if(sso_result < 0)
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Couldn't set SO_NOSIGPIPE");
 #endif
+
+        struct timeval tv;
+        tv.tv_sec  = tcpConnection->timeout / 1000;          
+        tv.tv_usec = (tcpConnection->timeout % 1000) * 1000;  
+        setsockopt(connection->sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+        setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
         error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
                            tcpConnection->server->ai_addrlen);
 
