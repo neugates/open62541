@@ -280,6 +280,9 @@ typedef struct {
     UA_UInt16 serverSocketsSize;
     LIST_HEAD(, ConnectionEntry) connections;
     UA_UInt16 connectionsSize;
+#ifndef NEURON_USE_SELECT
+    int epollFd;
+#endif
 } ServerNetworkLayerTCP;
 
 static void
@@ -379,6 +382,14 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
 
     /* Add to the linked list */
     LIST_INSERT_HEAD(&layer->connections, e, pointers);
+#ifndef NEURON_USE_SELECT
+    {
+        struct epoll_event ev;
+        ev.events = EPOLLIN;
+        ev.data.fd = newsockfd;
+        epoll_ctl(layer->epollFd, EPOLL_CTL_ADD, newsockfd, &ev);
+    }
+#endif
     if(nl->statistics) {
         nl->statistics->currentConnectionCount++;
         nl->statistics->cumulatedConnectionCount++;
@@ -541,7 +552,34 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
     
     if(layer->serverSocketsSize == 0) {
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    }    
+    }
+
+#ifndef NEURON_USE_SELECT
+    layer->epollFd = epoll_create(1);
+    if(layer->epollFd < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+                           "Failed to create epoll instance: %s", errno_str));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    {
+        struct epoll_event ev;
+        ev.events = EPOLLIN;
+        for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
+            ev.data.fd = layer->serverSockets[i];
+            if(epoll_ctl(layer->epollFd, EPOLL_CTL_ADD,
+                         layer->serverSockets[i], &ev) < 0) {
+                UA_LOG_SOCKET_ERRNO_WRAP(
+                    UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+                                   "Failed to add server socket to epoll: %s",
+                                   errno_str));
+                close(layer->epollFd);
+                layer->epollFd = -1;
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+        }
+    }
+#endif
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
@@ -569,6 +607,128 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
                 (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
     return UA_STATUSCODE_GOOD;
 }
+
+#ifndef NEURON_USE_SELECT
+
+static UA_StatusCode
+ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
+                             UA_UInt16 timeout) {
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
+
+    if(layer->serverSocketsSize == 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Allocate events array */
+    size_t maxEvents = (size_t)layer->connectionsSize + layer->serverSocketsSize + 1;
+    struct epoll_event *events = (struct epoll_event *)
+        UA_malloc(sizeof(struct epoll_event) * maxEvents);
+    if(!events) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Wait for events on all registered sockets */
+    int nfds = epoll_wait(layer->epollFd, events, (int)maxEvents, (int)timeout);
+    if(nfds < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_DEBUG(layer->logger, UA_LOGCATEGORY_NETWORK,
+                         "epoll_wait failed with %s", errno_str));
+        UA_free(events);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Accept new connections via the server sockets */
+    for(int i = 0; i < nfds; i++) {
+        int fd = events[i].data.fd;
+
+        /* Check if this is a server socket */
+        UA_Boolean isServerSocket = false;
+        for(UA_UInt16 j = 0; j < layer->serverSocketsSize; j++) {
+            if((int)layer->serverSockets[j] == fd) {
+                isServerSocket = true;
+                break;
+            }
+        }
+        if(!isServerSocket)
+            continue;
+
+        struct sockaddr_storage remote;
+        socklen_t remote_size = sizeof(remote);
+        UA_SOCKET newsockfd = UA_accept(fd,
+                                  (struct sockaddr*)&remote, &remote_size);
+        if(newsockfd == UA_INVALID_SOCKET)
+            continue;
+
+        UA_LOG_TRACE(layer->logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | New TCP connection on server socket %i",
+                    (int)newsockfd, fd);
+
+        if(ServerNetworkLayerTCP_add(nl, layer, (UA_Int32)newsockfd, &remote) != UA_STATUSCODE_GOOD) {
+            UA_close(newsockfd);
+        }
+    }
+
+    /* Read from established sockets */
+    ConnectionEntry *e, *e_tmp;
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
+        if((e->connection.state == UA_CONNECTIONSTATE_OPENING) &&
+            (now > (e->connection.openingDate + (NOHELLOTIMEOUT * UA_DATETIME_MSEC)))) {
+            UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                        "Connection %i | Closed by the server (no Hello Message)",
+                         (int)(e->connection.sockfd));
+            LIST_REMOVE(e, pointers);
+            layer->connectionsSize--;
+            UA_close(e->connection.sockfd);
+            UA_Server_removeConnection(server, &e->connection);
+            if(nl->statistics) {
+                nl->statistics->connectionTimeoutCount++;
+                nl->statistics->currentConnectionCount--;
+            }
+            continue;
+        }
+
+        /* Check if this connection had an event */
+        UA_Boolean hasEvent = false;
+        for(int i = 0; i < nfds; i++) {
+            if(events[i].data.fd == e->connection.sockfd) {
+                hasEvent = true;
+                break;
+            }
+        }
+        if(!hasEvent)
+            continue;
+
+        UA_LOG_TRACE(layer->logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Activity on the socket",
+                    (int)(e->connection.sockfd));
+
+        UA_ByteString buf = UA_BYTESTRING_NULL;
+        UA_StatusCode retval = connection_recv(&e->connection, &buf, 0);
+
+        if(retval == UA_STATUSCODE_GOOD) {
+            /* Process packets */
+            UA_Server_processBinaryMessage(server, &e->connection, &buf);
+            connection_releaserecvbuffer(&e->connection, &buf);
+        } else if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+            /* The socket is shutdown but not closed */
+            UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                        "Connection %i | Closed",
+                        (int)(e->connection.sockfd));
+            LIST_REMOVE(e, pointers);
+            layer->connectionsSize--;
+            UA_close(e->connection.sockfd);
+            UA_Server_removeConnection(server, &e->connection);
+            if(nl->statistics) {
+                nl->statistics->currentConnectionCount--;
+            }
+        }
+    }
+
+    UA_free(events);
+    return UA_STATUSCODE_GOOD;
+}
+
+#else /* NEURON_USE_SELECT */
 
 /* After every select, reset the sockets to listen on */
 static UA_Int32
@@ -686,6 +846,9 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+#endif /* NEURON_USE_SELECT */
+
+
 static void
 ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
@@ -708,6 +871,13 @@ ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
      * the connection. */
     ServerNetworkLayerTCP_listen(nl, server, 0);
 
+#ifndef NEURON_USE_SELECT
+    if(layer->epollFd >= 0) {
+        close(layer->epollFd);
+        layer->epollFd = -1;
+    }
+#endif
+
     UA_deinitialize_architecture_network();
 }
 
@@ -729,6 +899,13 @@ ServerNetworkLayerTCP_clear(UA_ServerNetworkLayer *nl) {
             nl->statistics->currentConnectionCount--;
         }
     }
+
+#ifndef NEURON_USE_SELECT
+    if(layer->epollFd >= 0) {
+        close(layer->epollFd);
+        layer->epollFd = -1;
+    }
+#endif
 
     /* Free the layer */
     UA_free(layer);
@@ -754,6 +931,9 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
 
     layer->port = port;
     layer->maxConnections = maxConnections;
+#ifndef NEURON_USE_SELECT
+    layer->epollFd = -1;
+#endif
 
     return nl;
 }
